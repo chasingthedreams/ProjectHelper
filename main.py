@@ -168,10 +168,6 @@ def handle_callbacks(call):
             user_states[user_id] = "awaiting_help"
             text = "🧠 *Опиши тему или задай вопрос* 👇"
 
-        elif last == "menu_pdf":
-            user_states[user_id] = "awaiting_pdf"
-            text = "📄 *Пришли PDF-файл для анализа*"
-
         else:
             return
 
