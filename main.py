@@ -2,13 +2,14 @@
 import os
 import telebot
 from dotenv import load_dotenv
-
 from database import save_request, init_db, get_last_topics, add_favorite, get_favorites, delete_last_favorite
 from keyboard import (get_main_inline_keyboard, get_uniq_inline_keyboard, get_back_inline_keyboard,
                       get_only_back_keyboard, get_uniq_result_keyboard, get_favorites_keyboard,
                       get_favorites_with_delete_keyboard, get_uniq_result_saved_keyboard)
 from promts import system_prompt_uniq, system_prompt_help, system_prompt_idea, base_system_prompt
 from ollama import ask_gemma
+import telebot.apihelper as apihelper
+import time
 
 # инициализация
 load_dotenv()
@@ -22,6 +23,10 @@ user_last_uniq_topic = {}
 user_last_menu = {}
 user_states = {}
 user_active_message = {}
+
+
+apihelper.CONNECT_TIMEOUT = 30
+apihelper.READ_TIMEOUT = 30
 
 
 # ии/промт
@@ -62,11 +67,14 @@ def main_menu_text(user):
 
 
 def show_generation_message(chat_id, msg_id):
-    bot.edit_message_text(
-        chat_id=chat_id,
-        message_id=msg_id,
-        text="⏳ *Генерация ответа...*"
-    )
+    try:
+        bot.edit_message_text(
+            chat_id=chat_id,
+            message_id=msg_id,
+            text="⏳ *Генерация ответа...*"
+        )
+    except:
+        pass
 
 
 # обработчик старта
@@ -87,8 +95,10 @@ def handle_start(message):
 def handle_callbacks(call):
     data = call.data
 
-    if data != "add_favorite":
+    try:
         bot.answer_callback_query(call.id)
+    except:
+        pass
 
     user_id = call.from_user.id
     chat_id = call.message.chat.id
@@ -100,32 +110,38 @@ def handle_callbacks(call):
     if data == "back_to_menu":
         user_states[user_id] = None
 
-        bot.edit_message_text(
-            chat_id=chat_id,
-            message_id=msg_id,
-            text=main_menu_text(call.from_user),
-            reply_markup=get_main_inline_keyboard()
-        )
+        try:
+            bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=msg_id,
+                text=main_menu_text(call.from_user),
+                reply_markup=get_main_inline_keyboard()
+            )
+        except Exception as e:
+            print("Ошибка back_to_menu:", e)
 
     elif data == "back_to_uniq":
         user_states[user_id] = "uniq"
 
-        bot.edit_message_text(
-            chat_id=chat_id,
-            message_id=msg_id,
-            text=(
-                "🎯 *Генерация уникальной темы проекта*\n\n"
-                "Я подберу *простую и реализуемую тему*, "
-                "которую можно без проблем разработать и защитить.\n\n"
-                "⏳ После нажатия кнопки *«🎲 Сгенерировать»* "
-                "ответ может появиться не сразу — обычно это занимает "
-                "*10–20 секунд*.\n\n"
-                "👇 Доступные действия:\n"
-                "• 🎲 *Сгенерировать* — получить новую уникальную тему\n"
-                "• ⬅️ *Назад* — вернуться в главное меню"
-            ),
-            reply_markup=get_uniq_inline_keyboard()
-        )
+        try:
+            bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=msg_id,
+                text=(
+                    "🎯 *Генерация уникальной темы проекта*\n\n"
+                    "Я подберу *простую и реализуемую тему*, "
+                    "которую можно без проблем разработать и защитить.\n\n"
+                    "⏳ После нажатия кнопки *«🎲 Сгенерировать»* "
+                    "ответ может появиться не сразу — обычно это занимает "
+                    "*10–20 секунд*.\n\n"
+                    "👇 Доступные действия:\n"
+                    "• 🎲 *Сгенерировать* — получить новую уникальную тему\n"
+                    "• ⬅️ *Назад* — вернуться в главное меню"
+                ),
+                reply_markup=get_uniq_inline_keyboard()
+            )
+        except Exception as e:
+            print("Ошибка back_to_uniq:", e)
 
     elif data == "delete_last_favorite":
         deleted = delete_last_favorite(user_id)
@@ -149,12 +165,15 @@ def handle_callbacks(call):
             )
             keyboard = get_favorites_with_delete_keyboard()
 
-        bot.edit_message_text(
-            chat_id=chat_id,
-            message_id=msg_id,
-            text=text,
-            reply_markup=keyboard
-        )
+        try:
+            bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=msg_id,
+                text=text,
+                reply_markup=keyboard
+            )
+        except Exception as e:
+            print("Ошибка delete_favorite:", e)
 
     # ================== кнопка еще раз ==================
     elif data == "repeat":
@@ -171,42 +190,52 @@ def handle_callbacks(call):
         else:
             return
 
-        bot.edit_message_text(
-            chat_id=chat_id,
-            message_id=msg_id,
-            text=text,
-            reply_markup=get_only_back_keyboard()
-        )
+        try:
+            bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=msg_id,
+                text=text,
+                reply_markup=get_only_back_keyboard()
+            )
+        except Exception as e:
+            print("Ошибка repeat:", e)
 
     # ================== генерация уникальной темы ==================
     elif data == "menu_uniq":
         user_states[user_id] = "uniq"
 
-        bot.edit_message_text(
-            chat_id=chat_id,
-            message_id=msg_id,
-            text=(
-                "🎯 *Генерация уникальной темы проекта*\n\n"
-                "Я подберу *простую и реализуемую тему*, "
-                "которую можно без проблем разработать и защитить.\n\n"
-                "⏳ После нажатия кнопки *«🎲 Сгенерировать»* "
-                "ответ может появиться не сразу — обычно это занимает "
-                "*10–20 секунд*.\n\n"
-                "👇 Доступные действия:\n"
-                "• 🎲 *Сгенерировать* — получить новую уникальную тему\n"
-                "• ⬅️ *Назад* — вернуться в главное меню"
-            ),
-            reply_markup=get_uniq_inline_keyboard()
-        )
+        try:
+            bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=msg_id,
+                text=(
+                    "🎯 *Генерация уникальной темы проекта*\n\n"
+                    "Я подберу *простую и реализуемую тему*, "
+                    "которую можно без проблем разработать и защитить.\n\n"
+                    "⏳ После нажатия кнопки *«🎲 Сгенерировать»* "
+                    "ответ может появиться не сразу — обычно это занимает "
+                    "*10–20 секунд*.\n\n"
+                    "👇 Доступные действия:\n"
+                    "• 🎲 *Сгенерировать* — получить новую уникальную тему\n"
+                    "• ⬅️ *Назад* — вернуться в главное меню"
+                ),
+                reply_markup=get_uniq_inline_keyboard()
+            )
+        except Exception as e:
+            print("Ошибка menu_uniq:", e)
 
     elif data == "uniq_generate":
-        last_topics = get_last_topics(user_id, limit=15)
+        last_topics = get_last_topics(user_id, limit=30)
         rules_block = ""
 
         if last_topics:
             rules_block = (
-                    "\n\nРАНЕЕ СГЕНЕРИРОВАННЫЕ ТЕМЫ:\n"
-                    + "\n".join(f"- {t[:100]}" for t in last_topics)
+                    "\n\n⚠️ ПРАВИЛО ДЛЯ ГЕНЕРАЦИИ:\n"
+                    "• НЕ повторяй темы из списка ниже\n"
+                    "• Каждый новый проект должен быть принципиально другим по сути и типу\n"
+                    "• Старайся делать тему такой, чтобы студент сказал «Хочу это сделать!»\n"
+                    "\nЗАПРЕЩЁННЫЕ ПОВТОРЫ:\n"
+                    + "\n".join(f"{i + 1}. {t[:120]}" for i, t in enumerate(last_topics))
             )
 
         show_generation_message(chat_id, msg_id)
@@ -218,12 +247,15 @@ def handle_callbacks(call):
         user_last_uniq_topic[user_id] = response
         save_request(user_id, "uniq", "", response)
 
-        bot.edit_message_text(
-            chat_id=chat_id,
-            message_id=msg_id,
-            text=response,
-            reply_markup=get_uniq_result_keyboard()
-        )
+        try:
+            bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=msg_id,
+                text=response,
+                reply_markup=get_uniq_result_keyboard()
+            )
+        except Exception as e:
+            print("Ошибка uniq_generate:", e)
 
     elif data == "add_favorite":
         topic = user_last_uniq_topic.get(user_id)
@@ -242,11 +274,14 @@ def handle_callbacks(call):
             text="⭐ Тема добавлена в избранное"
         )
 
-        bot.edit_message_reply_markup(
-            chat_id=chat_id,
-            message_id=msg_id,
-            reply_markup=get_uniq_result_saved_keyboard()
-        )
+        try:
+            bot.edit_message_reply_markup(
+                chat_id=chat_id,
+                message_id=msg_id,
+                reply_markup=get_uniq_result_saved_keyboard()
+            )
+        except Exception as e:
+            print("Ошибка add_favorite:", e)
 
     elif data == "show_favorites":
         favorites = get_favorites(user_id)
@@ -258,52 +293,61 @@ def handle_callbacks(call):
             text = "⭐ *Твои избранные темы:*\n\n" + "\n\n".join(f"{i + 1}. {t}" for i, t in enumerate(favorites))
             keyboard = get_favorites_with_delete_keyboard()
 
-        bot.edit_message_text(
-            chat_id=chat_id,
-            message_id=msg_id,
-            text=text,
-            reply_markup=keyboard
-        )
+        try:
+            bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=msg_id,
+                text=text,
+                reply_markup=keyboard
+            )
+        except Exception as e:
+            print("Ошибка show_favorites:", e)
 
     # ================== тема по запросу ==================
     elif data == "menu_idea":
         user_states[user_id] = "awaiting_idea"
         user_last_menu[user_id] = "menu_idea"
 
-        bot.edit_message_text(
-            chat_id=chat_id,
-            message_id=msg_id,
-            text=(
-                "📝 *Тема проекта по твоему запросу*\n\n"
-                "Опиши, с чем должен быть связан проект: предмет, направление, "
-                "интересующую область или примерную идею.\n\n"
-                "⏳ После отправки сообщения ответ может появиться не сразу — "
-                "обычно генерация занимает *10–20 секунд*.\n\n"
-                "⬅️ *Назад* — вернуться в главное меню.\n\n"
-                "👇 Напиши свой запрос:"
-            ),
-            reply_markup=get_only_back_keyboard()
-        )
+        try:
+            bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=msg_id,
+                text=(
+                    "📝 *Тема проекта по твоему запросу*\n\n"
+                    "Опиши, с чем должен быть связан проект: предмет, направление, "
+                    "интересующую область или примерную идею.\n\n"
+                    "⏳ После отправки сообщения ответ может появиться не сразу — "
+                    "обычно генерация занимает *10–20 секунд*.\n\n"
+                    "⬅️ *Назад* — вернуться в главное меню.\n\n"
+                    "👇 Напиши свой запрос:"
+                ),
+                reply_markup=get_only_back_keyboard()
+            )
+        except Exception as e:
+            print("Ошибка menu_idea:", e)
 
     # ================== помощь ==================
     elif data == "menu_help":
         user_states[user_id] = "awaiting_help"
         user_last_menu[user_id] = "menu_help"
 
-        bot.edit_message_text(
-            chat_id=chat_id,
-            message_id=msg_id,
-            text=(
-                "🧠 *Помощь с темой проекта*\n\n"
-                "Напиши тему проекта или задай вопрос — я помогу уточнить формулировку, "
-                "улучшить идею или подсказать, как её доработать.\n\n"
-                "⏳ Ответ формируется не мгновенно — "
-                "обычно это занимает *10–20 секунд*.\n\n"
-                "⬅️ *Назад* — вернуться в главное меню.\n\n"
-                "👇 Опиши тему или задай вопрос:"
-            ),
-            reply_markup=get_only_back_keyboard()
-        )
+        try:
+            bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=msg_id,
+                text=(
+                    "🧠 *Помощь с темой проекта*\n\n"
+                    "Напиши тему проекта или задай вопрос — я помогу уточнить формулировку, "
+                    "улучшить идею или подсказать, как её доработать.\n\n"
+                    "⏳ Ответ формируется не мгновенно — "
+                    "обычно это занимает *10–20 секунд*.\n\n"
+                    "⬅️ *Назад* — вернуться в главное меню.\n\n"
+                    "👇 Опиши тему или задай вопрос:"
+                ),
+                reply_markup=get_only_back_keyboard()
+            )
+        except Exception as e:
+            print("Ошибка menu_help:", e)
 
 
 # обработчик текста
@@ -340,12 +384,15 @@ def handle_text(message):
     is_error = response.startswith("⚠️") or response.startswith("❌")
     keyboard = get_back_inline_keyboard()
 
-    bot.edit_message_text(
-        chat_id=message.chat.id,
-        message_id=msg_id,
-        text=response,
-        reply_markup=keyboard
-    )
+    try:
+        bot.edit_message_text(
+            chat_id=message.chat.id,
+            message_id=msg_id,
+            text=response,
+            reply_markup=keyboard
+        )
+    except Exception as e:
+        print("Ошибка ответа:", e)
 
     try:
         bot.delete_message(message.chat.id, user_message_id)
@@ -359,4 +406,10 @@ def handle_text(message):
 # запуск бота
 if __name__ == "__main__":
     print("Бот запущен")
-    bot.polling(none_stop=True)
+
+    while True:
+        try:
+            bot.polling(none_stop=True, interval=0, timeout=30)
+        except Exception as e:
+            print("Ошибка polling:", e)
+            time.sleep(5)
