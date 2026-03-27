@@ -124,3 +124,9 @@ def favorites_empty_text():
 
 def generation_loading_text():
     return "⏳ *Генерация ответа...*"
+
+def project_help_text():
+    return "Введите тему проекта или выберите из своих избранных тем:"
+
+def project_help_write_topic():
+    return "Напишите тему проекта сообщением в чат."
