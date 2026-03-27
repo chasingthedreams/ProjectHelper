@@ -6,7 +6,8 @@ from database import save_request, init_db, get_last_topics, add_favorite, get_f
 from keyboard import *
 from texts import *
 from states import *
-from promts import system_prompt_uniq, system_prompt_help, system_prompt_idea, base_system_prompt
+from prompts import system_prompt_uniq, system_prompt_help, system_prompt_idea, base_system_prompt, \
+    build_project_section_prompt
 from utils import build_prompt, safe_gemma, show_generation_message
 import telebot.apihelper as apihelper
 import time
@@ -64,7 +65,7 @@ def handle_callbacks(call):
 
     user_active_message[user_id] = msg_id
 
-# кнопка назад
+    # кнопка назад
     if data == "back_to_menu":
         user_states[user_id] = None
         user_data[user_id] = {}
@@ -113,7 +114,7 @@ def handle_callbacks(call):
         except Exception as e:
             print("Ошибка delete_favorite:", e)
 
-# кнопка ещё раз
+    # кнопка ещё раз
     elif data == "repeat":
         last = user_last_menu.get(user_id)
 
@@ -138,7 +139,7 @@ def handle_callbacks(call):
         except Exception as e:
             print("Ошибка repeat:", e)
 
-# генерация уникальной темы
+    # генерация уникальной темы
     elif data == "menu_uniq":
         user_states[user_id] = None
         user_data[user_id] = {}
@@ -371,7 +372,7 @@ def handle_callbacks(call):
         except Exception as e:
             print("Ошибка show_favorites:", e)
 
-# тема по запросу
+    # тема по запросу
     elif data == "menu_idea":
         user_states[user_id] = "awaiting_idea"
         user_last_menu[user_id] = "menu_idea"
@@ -386,7 +387,7 @@ def handle_callbacks(call):
         except Exception as e:
             print("Ошибка menu_idea:", e)
 
-# помощь
+    # помощь
     elif data == "menu_help":
         user_states[user_id] = "awaiting_help"
         user_last_menu[user_id] = "menu_help"
@@ -401,6 +402,59 @@ def handle_callbacks(call):
         except Exception as e:
             print("Ошибка menu_help:", e)
 
+    # доработка проекта
+    elif data == "project_help_open":
+        user_states[user_id] = "project_topic_choice"
+        user_last_menu[user_id] = "project_help_open"
+
+        try:
+            bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=msg_id,
+                text=project_help_text(),
+                reply_markup=get_topic_choice_keyboard()
+            )
+        except Exception as e:
+            print("Ошибка project_help_open:", e)
+
+    elif data == "topic_write":
+        user_states[user_id] = "wait_project_topic"
+        user_last_menu[user_id] = "topic_write"
+
+        try:
+            bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=msg_id,
+                text=project_help_write_topic(),
+                reply_markup=get_project_topic_back_keyboard()
+            )
+        except Exception as e:
+            print("Ошибка topic_write:", e)
+
+
+    elif data == "project_relevance":
+        topic = user_data[user_id]["project_topic"]
+
+        show_generation_message(bot, chat_id, msg_id)
+        prompt = build_project_section_prompt(
+            topic,
+            "Актуальность",
+            "Объясни, почему эта тема важна, какую проблему решает и где может применяться. 5–6 предложений."
+        )
+
+        response = safe_gemma(build_prompt(base_system_prompt, "", prompt))
+
+        try:
+            bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=msg_id,
+                text=f"📌 Тема проекта:\n{topic}\n\n📍 Актуальность:\n{response}",
+                reply_markup=get_project_topic_back_keyboard()
+            )
+
+        except Exception as e:
+            print("Ошибка project_relevance:", e)
+
 
 # обработчик текста
 @bot.message_handler(content_types=["text"])
@@ -408,7 +462,6 @@ def handle_text(message):
     user_id = message.from_user.id
     state = user_states.get(user_id)
     msg_id = user_active_message.get(user_id)
-
     user_message_id = message.message_id
 
     if not msg_id:
@@ -422,6 +475,27 @@ def handle_text(message):
         )
         save_request(user_id, "idea", message.text, response)
 
+        is_error = response.startswith("⚠️") or response.startswith("❌")
+        keyboard = get_back_inline_keyboard()
+
+        try:
+            bot.edit_message_text(
+                chat_id=message.chat.id,
+                message_id=msg_id,
+                text=response,
+                reply_markup=keyboard
+            )
+        except Exception as e:
+            print("Ошибка ответа:", e)
+
+        try:
+            bot.delete_message(message.chat.id, user_message_id)
+        except:
+            pass
+
+        if not is_error:
+            user_states[user_id] = None
+
     elif state == "awaiting_help":
         show_generation_message(bot, message.chat.id, msg_id)
 
@@ -430,29 +504,54 @@ def handle_text(message):
         )
         save_request(user_id, "help", message.text, response)
 
+        is_error = response.startswith("⚠️") or response.startswith("❌")
+        keyboard = get_back_inline_keyboard()
+
+        try:
+            bot.edit_message_text(
+                chat_id=message.chat.id,
+                message_id=msg_id,
+                text=response,
+                reply_markup=keyboard
+            )
+        except Exception as e:
+            print("Ошибка ответа:", e)
+
+        try:
+            bot.delete_message(message.chat.id, user_message_id)
+        except:
+            pass
+
+        if not is_error:
+            user_states[user_id] = None
+
+    elif state == "wait_project_topic":
+        ensure_user_data(user_id)
+        user_data[user_id]["project_topic"] = message.text
+        topic = user_data[user_id]["project_topic"]
+
+        text = f"📌 Тема проекта:\n{topic}\n\nЧто нужно сгенерировать?"
+
+        try:
+            bot.edit_message_text(
+                chat_id=message.chat.id,
+                message_id=msg_id,
+                text=text,
+                reply_markup=get_project_sections_keyboard()
+            )
+        except Exception as e:
+            print("Ошибка wait_project_topic edit:", e)
+            return
+
+        try:
+            bot.delete_message(message.chat.id, user_message_id)
+        except Exception as e:
+            print("Ошибка удаления сообщения пользователя:", e)
+
+        user_states[user_id] = "project_sections"
+
     else:
         return
-
-    is_error = response.startswith("⚠️") or response.startswith("❌")
-    keyboard = get_back_inline_keyboard()
-
-    try:
-        bot.edit_message_text(
-            chat_id=message.chat.id,
-            message_id=msg_id,
-            text=response,
-            reply_markup=keyboard
-        )
-    except Exception as e:
-        print("Ошибка ответа:", e)
-
-    try:
-        bot.delete_message(message.chat.id, user_message_id)
-    except:
-        pass
-
-    if not is_error:
-        user_states[user_id] = None
 
 
 # запуск бота
