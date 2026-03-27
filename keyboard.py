@@ -7,6 +7,7 @@ def get_main_inline_keyboard():
         InlineKeyboardButton("✍️ Тема по запросу", callback_data="menu_idea"),
         InlineKeyboardButton("🤖 Тема сгенерированная ИИ", callback_data="menu_uniq"),
         InlineKeyboardButton("💡 Помощь с темой", callback_data="menu_help"),
+        InlineKeyboardButton("📚 Помощь с проектом", callback_data="project_help_open")
     )
     return kb
 
@@ -156,5 +157,37 @@ def get_uniq_mode_keyboard():
         InlineKeyboardButton("🧩 Подобрать по параметрам", callback_data="uniq_mode_smart"),
         InlineKeyboardButton("⭐ Моё избранное", callback_data="show_favorites"),
         InlineKeyboardButton("⬅️ Назад", callback_data="back_to_menu")
+    )
+    return kb
+
+def get_topic_choice_keyboard():
+    kb = InlineKeyboardMarkup(row_width=1)
+    kb.add(
+        InlineKeyboardButton("✍️ Написать свою тему", callback_data="topic_write"),
+        InlineKeyboardButton("⭐ Выбрать из избранных", callback_data="topic_favorites"),
+        InlineKeyboardButton("⬅️ Назад", callback_data="back_to_menu")
+    )
+    return kb
+
+def get_project_topic_back_keyboard():
+    kb = InlineKeyboardMarkup(row_width=1)
+    kb.add(
+        InlineKeyboardButton("⬅️ Назад", callback_data="project_help_open")
+    )
+    return kb
+
+def get_project_sections_keyboard():
+    kb = InlineKeyboardMarkup(row_width=2)
+    kb.add(
+        InlineKeyboardButton("📌 Актуальность", callback_data="project_relevance"),
+        InlineKeyboardButton("🎯 Цель", callback_data="project_goal"),
+        InlineKeyboardButton("📋 Задачи", callback_data="project_tasks"),
+        InlineKeyboardButton("🔬 Объект и предмет", callback_data="project_object"),
+        InlineKeyboardButton("💡 Гипотеза", callback_data="project_hypothesis"),
+        InlineKeyboardButton("🧪 Методы", callback_data="project_methods"),
+        InlineKeyboardButton("🗂 План", callback_data="project_plan"),
+        InlineKeyboardButton("📄 Заключение", callback_data="project_conclusion"),
+        InlineKeyboardButton("📚 Всё сразу", callback_data="project_all"),
+        InlineKeyboardButton("⬅️ Назад", callback_data="project_help_open")
     )
     return kb
