@@ -7,7 +7,7 @@ from keyboard import *
 from texts import *
 from states import *
 from prompts import system_prompt_uniq, system_prompt_help, system_prompt_idea, base_system_prompt, \
-    build_project_section_prompt
+    build_project_section_prompt, system_prompt_project_sections, system_prompt_project_all
 from utils import build_prompt, safe_gemma, show_generation_message
 import telebot.apihelper as apihelper
 import time
@@ -29,20 +29,63 @@ from favorites_service import (
 load_dotenv()
 TOKEN = os.getenv("TOKEN")
 
-bot = telebot.TeleBot(TOKEN, parse_mode="Markdown")
+bot = telebot.TeleBot(TOKEN)
 init_db()
 
 apihelper.CONNECT_TIMEOUT = 30
 apihelper.READ_TIMEOUT = 30
 
 
+def generate_project_section(user_id, chat_id, msg_id, section_title, instruction, system_prompt, allow_list=False):
+    if user_id not in user_data or "project_topic" not in user_data[user_id]:
+        user_states[user_id] = "project_topic_choice"
+        try:
+            bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=msg_id,
+                text=project_help_text(),
+                reply_markup=get_topic_choice_keyboard(),
+                parse_mode="Markdown"
+            )
+        except Exception as e:
+            print("Ошибка возврата к выбору темы:", e)
+        return
+
+    topic = user_data[user_id]["project_topic"]
+
+    show_generation_message(bot, chat_id, msg_id)
+
+    prompt = build_project_section_prompt(topic, section_title, instruction, allow_list)
+
+    response = safe_gemma(
+        build_prompt(base_system_prompt, system_prompt, prompt)
+    )
+
+    text = (
+        f"📌 Тема проекта:\n{topic}\n\n"
+        f"{section_title}\n\n{response}"
+    )
+
+    try:
+        bot.edit_message_text(
+            chat_id=chat_id,
+            message_id=msg_id,
+            text=text,
+            reply_markup=get_project_sections_keyboard(),
+            parse_mode=None
+        )
+    except Exception as e:
+        print("Ошибка generate_project_section:", e)
+
 # обработчик старта
 @bot.message_handler(commands=["start"])
 def handle_start(message):
+    ensure_user_data(message.from_user.id)
     sent = bot.send_message(
         message.chat.id,
         main_menu_text(message.from_user),
-        reply_markup=get_main_inline_keyboard()
+        reply_markup=get_main_inline_keyboard(),
+        parse_mode="Markdown"
     )
 
     user_states[message.from_user.id] = None
@@ -75,7 +118,8 @@ def handle_callbacks(call):
                 chat_id=chat_id,
                 message_id=msg_id,
                 text=main_menu_text(call.from_user),
-                reply_markup=get_main_inline_keyboard()
+                reply_markup=get_main_inline_keyboard(),
+                parse_mode="Markdown"
             )
         except Exception as e:
             print("Ошибка back_to_menu:", e)
@@ -89,7 +133,8 @@ def handle_callbacks(call):
                 chat_id=chat_id,
                 message_id=msg_id,
                 text=uniq_mode_text(),
-                reply_markup=get_uniq_mode_keyboard()
+                reply_markup=get_uniq_mode_keyboard(),
+                parse_mode="Markdown"
             )
         except Exception as e:
             print("Ошибка back_to_uniq:", e)
@@ -109,7 +154,8 @@ def handle_callbacks(call):
                 chat_id=chat_id,
                 message_id=msg_id,
                 text=text,
-                reply_markup=keyboard
+                reply_markup=keyboard,
+                parse_mode="Markdown"
             )
         except Exception as e:
             print("Ошибка delete_favorite:", e)
@@ -120,11 +166,11 @@ def handle_callbacks(call):
 
         if last == "menu_idea":
             user_states[user_id] = "awaiting_idea"
-            text = repeat_idea_text()
+            text = menu_idea_text()
 
         elif last == "menu_help":
             user_states[user_id] = "awaiting_help"
-            text = repeat_help_text()
+            text = menu_help_text()
 
         else:
             return
@@ -134,7 +180,8 @@ def handle_callbacks(call):
                 chat_id=chat_id,
                 message_id=msg_id,
                 text=text,
-                reply_markup=get_only_back_keyboard()
+                reply_markup=get_only_back_keyboard(),
+                parse_mode="Markdown"
             )
         except Exception as e:
             print("Ошибка repeat:", e)
@@ -149,7 +196,8 @@ def handle_callbacks(call):
                 chat_id=chat_id,
                 message_id=msg_id,
                 text=uniq_mode_text(),
-                reply_markup=get_uniq_mode_keyboard()
+                reply_markup=get_uniq_mode_keyboard(),
+                parse_mode="Markdown"
             )
         except Exception as e:
             print("Ошибка menu_uniq:", e)
@@ -162,7 +210,8 @@ def handle_callbacks(call):
                 chat_id=chat_id,
                 message_id=msg_id,
                 text=uniq_classic_text(),
-                reply_markup=get_uniq_inline_keyboard()
+                reply_markup=get_uniq_inline_keyboard(),
+                parse_mode="Markdown"
             )
         except Exception as e:
             print("Ошибка uniq_mode_classic:", e)
@@ -176,7 +225,8 @@ def handle_callbacks(call):
                 chat_id=chat_id,
                 message_id=msg_id,
                 text=uniq_smart_start_text(),
-                reply_markup=get_direction_keyboard()
+                reply_markup=get_direction_keyboard(),
+                parse_mode="Markdown"
             )
         except Exception as e:
             print("Ошибка uniq_mode_smart:", e)
@@ -189,7 +239,8 @@ def handle_callbacks(call):
                 chat_id=chat_id,
                 message_id=msg_id,
                 text=uniq_step_project_type_text(),
-                reply_markup=get_project_type_keyboard()
+                reply_markup=get_project_type_keyboard(),
+                parse_mode="Markdown"
             )
 
         except Exception as e:
@@ -204,7 +255,8 @@ def handle_callbacks(call):
                 chat_id=chat_id,
                 message_id=msg_id,
                 text=uniq_step_duration_text(),
-                reply_markup=get_duration_keyboard()
+                reply_markup=get_duration_keyboard(),
+                parse_mode="Markdown"
             )
         except Exception as e:
             print("Ошибка выбора типа проекта:", e)
@@ -217,7 +269,8 @@ def handle_callbacks(call):
                 chat_id=chat_id,
                 message_id=msg_id,
                 text=uniq_step_visual_text(),
-                reply_markup=get_visual_keyboard()
+                reply_markup=get_visual_keyboard(),
+                parse_mode="Markdown"
             )
         except Exception as e:
             print("Ошибка выбора сроков:", e)
@@ -230,7 +283,8 @@ def handle_callbacks(call):
                 chat_id=chat_id,
                 message_id=msg_id,
                 text=uniq_step_digital_text(),
-                reply_markup=get_digital_keyboard()
+                reply_markup=get_digital_keyboard(),
+                parse_mode="Markdown"
             )
         except Exception as e:
             print("Ошибка выбора визуального результата:", e)
@@ -367,7 +421,8 @@ def handle_callbacks(call):
                 chat_id=chat_id,
                 message_id=msg_id,
                 text=text,
-                reply_markup=keyboard
+                reply_markup=keyboard,
+                parse_mode="Markdown"
             )
         except Exception as e:
             print("Ошибка show_favorites:", e)
@@ -382,7 +437,8 @@ def handle_callbacks(call):
                 chat_id=chat_id,
                 message_id=msg_id,
                 text=menu_idea_text(),
-                reply_markup=get_only_back_keyboard()
+                reply_markup=get_only_back_keyboard(),
+                parse_mode="Markdown"
             )
         except Exception as e:
             print("Ошибка menu_idea:", e)
@@ -397,7 +453,8 @@ def handle_callbacks(call):
                 chat_id=chat_id,
                 message_id=msg_id,
                 text=menu_help_text(),
-                reply_markup=get_only_back_keyboard()
+                reply_markup=get_only_back_keyboard(),
+                parse_mode="Markdown"
             )
         except Exception as e:
             print("Ошибка menu_help:", e)
@@ -412,7 +469,8 @@ def handle_callbacks(call):
                 chat_id=chat_id,
                 message_id=msg_id,
                 text=project_help_text(),
-                reply_markup=get_topic_choice_keyboard()
+                reply_markup=get_topic_choice_keyboard(),
+                parse_mode="Markdown"
             )
         except Exception as e:
             print("Ошибка project_help_open:", e)
@@ -426,34 +484,108 @@ def handle_callbacks(call):
                 chat_id=chat_id,
                 message_id=msg_id,
                 text=project_help_write_topic(),
-                reply_markup=get_project_topic_back_keyboard()
+                reply_markup=get_project_topic_back_keyboard(),
+                parse_mode="Markdown"
             )
         except Exception as e:
             print("Ошибка topic_write:", e)
 
 
     elif data == "project_relevance":
-        topic = user_data[user_id]["project_topic"]
-
-        show_generation_message(bot, chat_id, msg_id)
-        prompt = build_project_section_prompt(
-            topic,
-            "Актуальность",
-            "Объясни, почему эта тема важна, какую проблему решает и где может применяться. 5–6 предложений."
+        section_title = "📍 Актуальность"
+        instruction = (
+            "Объясни, почему эта тема важна, какую проблему она решает "
+            "и где может применяться."
         )
 
-        response = safe_gemma(build_prompt(base_system_prompt, "", prompt))
+        generate_project_section(user_id, chat_id, msg_id, section_title, instruction, system_prompt_project_sections,
+                                 allow_list=False)
 
-        try:
-            bot.edit_message_text(
-                chat_id=chat_id,
-                message_id=msg_id,
-                text=f"📌 Тема проекта:\n{topic}\n\n📍 Актуальность:\n{response}",
-                reply_markup=get_project_topic_back_keyboard()
-            )
 
-        except Exception as e:
-            print("Ошибка project_relevance:", e)
+    elif data == "project_goal":
+        section_title = "🎯 Цель проекта"
+        instruction = (
+            "Сформулируй одну цель проекта. "
+            "Начни со слов: Цель проекта — ..."
+        )
+
+        generate_project_section(user_id, chat_id, msg_id, section_title, instruction, system_prompt_project_sections,
+                                 allow_list=False)
+
+    elif data == "project_tasks":
+        section_title = "📋 Задачи проекта"
+        instruction = (
+            "Напиши 4–5 задач проекта ТОЛЬКО нумерованным списком. "
+            "Каждая задача должна начинаться с глагола: "
+            "изучить, разработать, создать, проанализировать, исследовать."
+        )
+
+        generate_project_section(user_id, chat_id, msg_id, section_title, instruction, system_prompt_project_sections,
+                                 allow_list=True)
+
+    elif data == "project_object":
+        section_title = "🔬 Объект и предмет исследования"
+        instruction = (
+            "Определи объект и предмет исследования для этого проекта."
+        )
+
+        generate_project_section(user_id, chat_id, msg_id, section_title, instruction, system_prompt_project_sections,
+                                 allow_list=False)
+
+    elif data == "project_hypothesis":
+        section_title = "💡 Гипотеза"
+        instruction = (
+            "Сформулируй гипотезу проекта. "
+            "Начни со слов: Если ..., то ..."
+        )
+
+        generate_project_section(user_id, chat_id, msg_id, section_title, instruction, system_prompt_project_sections,
+                                 allow_list=False)
+
+    elif data == "project_methods":
+        section_title = "🛠 Методы исследования"
+        instruction = (
+            "Перечисли методы исследования, которые можно использовать в этом проекте."
+        )
+
+        generate_project_section(user_id, chat_id, msg_id, section_title, instruction, system_prompt_project_sections,
+                                 allow_list=True)
+
+    elif data == "project_plan":
+        section_title = "🗂 План работы"
+        instruction = (
+            "Составь примерный план выполнения проекта по этапам."
+        )
+
+        generate_project_section(user_id, chat_id, msg_id, section_title, instruction, system_prompt_project_sections,
+                                 allow_list=True)
+
+    elif data == "project_conclusion":
+        section_title = "📊 Заключение"
+        instruction = (
+            "Напиши заключение проекта с выводами."
+        )
+
+        generate_project_section(user_id, chat_id, msg_id, section_title, instruction, system_prompt_project_sections,
+                                 allow_list=False)
+
+    elif data == "project_all":
+        section_title = "📚 Полное описание проекта"
+
+        instruction = (
+            "Напиши полный текст проекта со следующими разделами:\n"
+            "Актуальность — текстом\n"
+            "Цель — текстом\n"
+            "Задачи — списком\n"
+            "Объект и предмет — текстом\n"
+            "Гипотеза — текстом\n"
+            "Методы — списком\n"
+            "План — списком\n"
+            "Заключение — текстом"
+        )
+
+        generate_project_section(user_id, chat_id, msg_id, section_title, instruction, system_prompt_project_all,
+                                 allow_list=False)
 
 
 # обработчик текста
@@ -530,14 +662,15 @@ def handle_text(message):
         user_data[user_id]["project_topic"] = message.text
         topic = user_data[user_id]["project_topic"]
 
-        text = f"📌 Тема проекта:\n{topic}\n\nЧто нужно сгенерировать?"
+        text = project_sections_text(topic)
 
         try:
             bot.edit_message_text(
                 chat_id=message.chat.id,
                 message_id=msg_id,
                 text=text,
-                reply_markup=get_project_sections_keyboard()
+                reply_markup=get_project_sections_keyboard(),
+                parse_mode=None
             )
         except Exception as e:
             print("Ошибка wait_project_topic edit:", e)
