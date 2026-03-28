@@ -28,7 +28,8 @@ def show_generation_message(bot, chat_id, msg_id):
         bot.edit_message_text(
             chat_id=chat_id,
             message_id=msg_id,
-            text=generation_loading_text()
+            text=generation_loading_text(),
+            parse_mode="Markdown",
         )
     except:
         pass
