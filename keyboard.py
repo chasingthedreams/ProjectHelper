@@ -187,7 +187,7 @@ def get_project_sections_keyboard():
         InlineKeyboardButton("🧪 Методы", callback_data="project_methods"),
         InlineKeyboardButton("🗂 План", callback_data="project_plan"),
         InlineKeyboardButton("📄 Заключение", callback_data="project_conclusion"),
-        InlineKeyboardButton("📚 Всё сразу", callback_data="project_all"),
+        InlineKeyboardButton("📦 Всё сразу", callback_data="project_all"),
         InlineKeyboardButton("⬅️ Назад", callback_data="project_help_open")
     )
     return kb
