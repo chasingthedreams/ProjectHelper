@@ -50,6 +50,52 @@ def get_back_inline_keyboard():
     return kb
 
 
+def get_idea_result_keyboard():
+    kb = InlineKeyboardMarkup(row_width=2)
+    kb.add(
+        InlineKeyboardButton("⬅️ Назад", callback_data="back_to_menu"),
+        InlineKeyboardButton("🔁 Ещё раз", callback_data="repeat"),
+        InlineKeyboardButton("⬆️ Сделать проще", callback_data="make_easier"),
+        InlineKeyboardButton("🌟 Сделать интереснее", callback_data="make_more_interesting"),
+        InlineKeyboardButton("⭐ Добавить в избранное", callback_data="add_favorite")
+    )
+    return kb
+
+
+def get_idea_result_saved_keyboard():
+    kb = InlineKeyboardMarkup(row_width=2)
+    kb.add(
+        InlineKeyboardButton("⬅️ Назад", callback_data="back_to_menu"),
+        InlineKeyboardButton("🔁 Ещё раз", callback_data="repeat"),
+        InlineKeyboardButton("⬆️ Сделать проще", callback_data="make_easier"),
+        InlineKeyboardButton("🌟 Сделать интереснее", callback_data="make_more_interesting")
+    )
+    return kb
+
+
+def get_help_result_keyboard():
+    kb = InlineKeyboardMarkup(row_width=2)
+    kb.add(
+        InlineKeyboardButton("⬅️ Назад", callback_data="back_to_menu"),
+        InlineKeyboardButton("🔁 Ещё раз", callback_data="repeat"),
+        InlineKeyboardButton("🧩 Сформулировать проще", callback_data="make_easier"),
+        InlineKeyboardButton("✨ Сделать интереснее", callback_data="make_more_interesting"),
+        InlineKeyboardButton("⭐ В избранное", callback_data="add_favorite")
+    )
+    return kb
+
+
+def get_help_result_saved_keyboard():
+    kb = InlineKeyboardMarkup(row_width=2)
+    kb.add(
+        InlineKeyboardButton("⬅️ Назад", callback_data="back_to_menu"),
+        InlineKeyboardButton("🔁 Ещё раз", callback_data="repeat"),
+        InlineKeyboardButton("🧩 Сформулировать проще", callback_data="make_easier"),
+        InlineKeyboardButton("✨ Сделать интереснее", callback_data="make_more_interesting")
+    )
+    return kb
+
+
 def get_only_back_keyboard():
     kb = InlineKeyboardMarkup(row_width=1)
     kb.add(
@@ -191,3 +237,4 @@ def get_project_sections_keyboard():
         InlineKeyboardButton("⬅️ Назад", callback_data="project_help_open")
     )
     return kb
+    

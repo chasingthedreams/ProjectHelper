@@ -69,6 +69,8 @@ def make_topic_easier(
     if not last_topic:
         return None
 
+    mode = user_last_uniq_mode.get(user_id, "smart")
+
     response = safe_gemma(
         build_easier_prompt(
             last_topic,
@@ -79,7 +81,7 @@ def make_topic_easier(
     )
 
     user_last_uniq_topic[user_id] = response
-    user_last_uniq_mode[user_id] = "smart"
+    user_last_uniq_mode[user_id] = mode
     save_request(user_id, "smart_make_easier", last_topic, response)
 
     return response
@@ -98,6 +100,8 @@ def make_topic_more_interesting(
     if not last_topic:
         return None
 
+    mode = user_last_uniq_mode.get(user_id, "smart")
+
     response = safe_gemma(
         build_more_interesting_prompt(
             last_topic,
@@ -108,8 +112,39 @@ def make_topic_more_interesting(
     )
 
     user_last_uniq_topic[user_id] = response
-    user_last_uniq_mode[user_id] = "smart"
+    user_last_uniq_mode[user_id] = mode
     save_request(user_id, "smart_make_more_interesting", last_topic, response)
+
+    return response
+
+
+def make_topic_more_practical(
+    user_id,
+    build_prompt,
+    base_system_prompt,
+    system_prompt_uniq,
+    build_more_practical_prompt,
+    safe_gemma,
+    save_request
+):
+    last_topic = user_last_uniq_topic.get(user_id)
+    if not last_topic:
+        return None
+
+    mode = user_last_uniq_mode.get(user_id, "smart")
+
+    response = safe_gemma(
+        build_more_practical_prompt(
+            last_topic,
+            build_prompt,
+            base_system_prompt,
+            system_prompt_uniq
+        )
+    )
+
+    user_last_uniq_topic[user_id] = response
+    user_last_uniq_mode[user_id] = mode
+    save_request(user_id, "make_more_practical", last_topic, response)
 
     return response
 

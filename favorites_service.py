@@ -1,7 +1,13 @@
 from keyboard import (
     get_favorites_keyboard,
     get_favorites_with_delete_keyboard,
+    get_help_result_keyboard,
+    get_help_result_saved_keyboard,
+    get_idea_result_keyboard,
+    get_idea_result_saved_keyboard,
+    get_smart_result_keyboard,
     get_smart_result_saved_keyboard,
+    get_uniq_result_keyboard,
     get_uniq_result_saved_keyboard
 )
 
@@ -38,4 +44,18 @@ def delete_last_favorite_and_build_view(user_id, delete_last_favorite, get_favor
 def get_saved_result_keyboard_by_mode(mode):
     if mode == "smart":
         return get_smart_result_saved_keyboard()
+    if mode == "idea":
+        return get_idea_result_saved_keyboard()
+    if mode == "help":
+        return get_help_result_saved_keyboard()
     return get_uniq_result_saved_keyboard()
+
+
+def get_result_keyboard_by_mode(mode):
+    if mode == "smart":
+        return get_smart_result_keyboard()
+    if mode == "idea":
+        return get_idea_result_keyboard()
+    if mode == "help":
+        return get_help_result_keyboard()
+    return get_uniq_result_keyboard()

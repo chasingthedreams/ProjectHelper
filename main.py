@@ -22,6 +22,7 @@ from generation_service import (
 from favorites_service import (
     build_favorites_view,
     delete_last_favorite_and_build_view,
+    get_result_keyboard_by_mode,
     get_saved_result_keyboard_by_mode
 )
 
@@ -336,12 +337,13 @@ def handle_callbacks(call):
         show_generation_message(bot, chat_id, msg_id)
         response = make_topic_easier(user_id, build_prompt, base_system_prompt, system_prompt_uniq, build_easier_prompt,
                                      safe_gemma, save_request)
+        keyboard = get_result_keyboard_by_mode(user_last_uniq_mode.get(user_id))
         try:
             bot.edit_message_text(
                 chat_id=chat_id,
                 message_id=msg_id,
                 text=response,
-                reply_markup=get_smart_result_keyboard()
+                reply_markup=keyboard
             )
         except Exception as e:
             print("Ошибка make_easier:", e)
@@ -359,12 +361,13 @@ def handle_callbacks(call):
         show_generation_message(bot, chat_id, msg_id)
         response = make_topic_more_interesting(user_id, build_prompt, base_system_prompt, system_prompt_uniq,
                                                build_more_interesting_prompt, safe_gemma, save_request)
+        keyboard = get_result_keyboard_by_mode(user_last_uniq_mode.get(user_id))
         try:
             bot.edit_message_text(
                 chat_id=chat_id,
                 message_id=msg_id,
                 text=response,
-                reply_markup=get_smart_result_keyboard()
+                reply_markup=keyboard
             )
         except Exception as e:
             print("Ошибка make_more_interesting:", e)
@@ -608,7 +611,12 @@ def handle_text(message):
         save_request(user_id, "idea", message.text, response)
 
         is_error = response.startswith("⚠️") or response.startswith("❌")
-        keyboard = get_back_inline_keyboard()
+        if is_error:
+            keyboard = get_back_inline_keyboard()
+        else:
+            user_last_uniq_topic[user_id] = response
+            user_last_uniq_mode[user_id] = "idea"
+            keyboard = get_idea_result_keyboard()
 
         try:
             bot.edit_message_text(
@@ -637,7 +645,12 @@ def handle_text(message):
         save_request(user_id, "help", message.text, response)
 
         is_error = response.startswith("⚠️") or response.startswith("❌")
-        keyboard = get_back_inline_keyboard()
+        if is_error:
+            keyboard = get_back_inline_keyboard()
+        else:
+            user_last_uniq_topic[user_id] = response
+            user_last_uniq_mode[user_id] = "help"
+            keyboard = get_help_result_keyboard()
 
         try:
             bot.edit_message_text(
