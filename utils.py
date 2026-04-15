@@ -1,5 +1,4 @@
 from ollama import ask_gemma
-from texts import generation_loading_text
 
 
 def build_prompt(base_system_prompt, system_prompt, user_text):
@@ -17,13 +16,19 @@ def safe_gemma(prompt):
         response = ask_gemma(prompt)
         if not response or not response.strip():
             return "⚠️ *Не удалось получить ответ.*"
-        return response.strip()
+
+        response = response.strip()
+        if len(response) < 10:
+            return "⚠️ *Ответ получился слишком коротким. Попробуй ещё раз.*"
+        return response
+    
     except Exception as e:
         print("Ошибка Ollama:", e)
         return "❌ *ИИ временно недоступна.*"
 
 
 def show_generation_message(bot, chat_id, msg_id):
+    from texts import generation_loading_text
     try:
         bot.edit_message_text(
             chat_id=chat_id,
@@ -33,3 +38,11 @@ def show_generation_message(bot, chat_id, msg_id):
         )
     except:
         pass
+
+def escape_markdown(text):
+    if not text:
+        return ""
+
+    for ch in ["_", "*", "[", "]", "(", ")", "~", "`", ">", "#", "+", "-", "=", "|", "{", "}", ".", "!"]:
+        text = text.replace(ch, f"\\{ch}")
+    return text
