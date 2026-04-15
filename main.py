@@ -1,30 +1,44 @@
 # импорты
 import os
+import time
 import telebot
+import telebot.apihelper as apihelper
 from dotenv import load_dotenv
-from database import save_request, init_db, get_last_topics, add_favorite, get_favorites, delete_last_favorite
-from keyboard import *
-from texts import *
-from states import *
+
+# БД
+from database import save_request, init_db, get_last_topics, add_favorite, get_favorites, delete_last_favorite, \
+    is_favorite_exists
+
+# Клавиатуры
+from keyboard import get_main_inline_keyboard, get_uniq_inline_keyboard, get_uniq_result_keyboard, \
+    get_back_inline_keyboard, get_only_back_keyboard, get_direction_keyboard, get_project_type_keyboard, \
+    get_duration_keyboard, get_visual_keyboard, get_digital_keyboard, get_smart_result_keyboard, get_uniq_mode_keyboard, \
+    get_topic_choice_keyboard, get_project_topic_back_keyboard, get_project_sections_keyboard, get_help_result_keyboard, \
+    get_idea_result_keyboard, get_project_favorites_keyboard, get_single_favorite_keyboard
+
+# Текста
+from texts import main_menu_text, uniq_mode_text, uniq_classic_text, uniq_smart_start_text, uniq_step_project_type_text, \
+    uniq_step_duration_text, uniq_step_visual_text, uniq_step_digital_text, menu_idea_text, menu_help_text, \
+    project_help_text, project_help_write_topic, project_sections_text
+
+# Состояния
+from states import STATE_SELECT_DIRECTION, user_data, ensure_user_data, build_smart_uniq_prompt, save_direction, \
+    save_project_type, save_duration, save_visual, save_digital, build_easier_prompt, build_more_interesting_prompt
+
+from session_data import user_last_uniq_topic, user_last_menu, user_states, user_active_message, user_last_uniq_mode
+
+# Промты
 from prompts import system_prompt_uniq, system_prompt_help, system_prompt_idea, base_system_prompt, \
     build_project_section_prompt, system_prompt_project_sections, system_prompt_project_all
+
+# Помощь
 from utils import build_prompt, safe_gemma, show_generation_message
-import telebot.apihelper as apihelper
-import time
-from session_data import *
-from generation_service import (
-    generate_smart_topic,
-    regenerate_smart_topic,
-    make_topic_easier,
-    make_topic_more_interesting,
-    generate_classic_topic
-)
-from favorites_service import (
-    build_favorites_view,
-    delete_last_favorite_and_build_view,
-    get_result_keyboard_by_mode,
+
+# Сервисы
+from generation_service import generate_smart_topic, regenerate_smart_topic, make_topic_easier, \
+    make_topic_more_interesting, generate_classic_topic
+from favorites_service import build_favorites_view, delete_last_favorite_and_build_view, get_result_keyboard_by_mode, \
     get_saved_result_keyboard_by_mode
-)
 
 # инициализация
 load_dotenv()
@@ -40,16 +54,12 @@ apihelper.READ_TIMEOUT = 30
 def generate_project_section(user_id, chat_id, msg_id, section_title, instruction, system_prompt, allow_list=False):
     if user_id not in user_data or "project_topic" not in user_data[user_id]:
         user_states[user_id] = "project_topic_choice"
-        try:
-            bot.edit_message_text(
-                chat_id=chat_id,
-                message_id=msg_id,
-                text=project_help_text(),
-                reply_markup=get_topic_choice_keyboard(),
-                parse_mode="Markdown"
-            )
-        except Exception as e:
-            print("Ошибка возврата к выбору темы:", e)
+        safe_edit_md(
+            chat_id,
+            msg_id,
+            project_help_text(),
+            get_topic_choice_keyboard()
+        )
         return
 
     topic = user_data[user_id]["project_topic"]
@@ -67,16 +77,53 @@ def generate_project_section(user_id, chat_id, msg_id, section_title, instructio
         f"{section_title}\n\n{response}"
     )
 
+    safe_edit_plain(
+        chat_id,
+        msg_id,
+        text,
+        get_project_sections_keyboard()
+    )
+
+
+def safe_edit_md(chat_id, msg_id, text, reply_markup=None):
     try:
         bot.edit_message_text(
             chat_id=chat_id,
             message_id=msg_id,
             text=text,
-            reply_markup=get_project_sections_keyboard(),
-            parse_mode=None
+            reply_markup=reply_markup,
+            parse_mode="Markdown"
         )
     except Exception as e:
-        print("Ошибка generate_project_section:", e)
+        if "message is not modified" in str(e):
+            return
+        print("Ошибка edit markdown:", e)
+
+
+def safe_edit_plain(chat_id, msg_id, text, reply_markup=None):
+    try:
+        bot.edit_message_text(
+            chat_id=chat_id,
+            message_id=msg_id,
+            text=text,
+            reply_markup=reply_markup
+        )
+    except Exception as e:
+        if "message is not modified" in str(e):
+            return
+        print("Ошибка edit plain:", e)
+
+
+def safe_markup(chat_id, msg_id, reply_markup):
+    try:
+        bot.edit_message_reply_markup(
+            chat_id=chat_id,
+            message_id=msg_id,
+            reply_markup=reply_markup
+        )
+    except Exception as e:
+        print("Ошибка markup:", e)
+
 
 # обработчик старта
 @bot.message_handler(commands=["start"])
@@ -114,35 +161,21 @@ def handle_callbacks(call):
         user_states[user_id] = None
         user_data[user_id] = {}
 
-        try:
-            bot.edit_message_text(
-                chat_id=chat_id,
-                message_id=msg_id,
-                text=main_menu_text(call.from_user),
-                reply_markup=get_main_inline_keyboard(),
-                parse_mode="Markdown"
-            )
-        except Exception as e:
-            print("Ошибка back_to_menu:", e)
+        safe_edit_md(chat_id, msg_id, main_menu_text(call.from_user), get_main_inline_keyboard())
 
 
     elif data == "back_to_uniq":
         user_states[user_id] = None
         user_data[user_id] = {}
-        try:
-            bot.edit_message_text(
-                chat_id=chat_id,
-                message_id=msg_id,
-                text=uniq_mode_text(),
-                reply_markup=get_uniq_mode_keyboard(),
-                parse_mode="Markdown"
-            )
-        except Exception as e:
-            print("Ошибка back_to_uniq:", e)
+
+        safe_edit_md(chat_id, msg_id, uniq_mode_text(), get_uniq_mode_keyboard())
+
 
 
     elif data == "delete_last_favorite":
-        text, keyboard, deleted = delete_last_favorite_and_build_view(user_id, delete_last_favorite, get_favorites)
+        source = user_data.get(user_id, {}).get("favorites_source", "uniq")
+        text, keyboard, deleted = delete_last_favorite_and_build_view(user_id, delete_last_favorite, get_favorites,
+                                                                      source)
         if not deleted:
             bot.answer_callback_query(
                 call.id,
@@ -150,16 +183,8 @@ def handle_callbacks(call):
                 show_alert=True
             )
             return
-        try:
-            bot.edit_message_text(
-                chat_id=chat_id,
-                message_id=msg_id,
-                text=text,
-                reply_markup=keyboard,
-                parse_mode="Markdown"
-            )
-        except Exception as e:
-            print("Ошибка delete_favorite:", e)
+
+        safe_edit_plain(chat_id, msg_id, text, keyboard)
 
     # кнопка ещё раз
     elif data == "repeat":
@@ -176,119 +201,49 @@ def handle_callbacks(call):
         else:
             return
 
-        try:
-            bot.edit_message_text(
-                chat_id=chat_id,
-                message_id=msg_id,
-                text=text,
-                reply_markup=get_only_back_keyboard(),
-                parse_mode="Markdown"
-            )
-        except Exception as e:
-            print("Ошибка repeat:", e)
+        safe_edit_md(chat_id, msg_id, text, get_only_back_keyboard())
 
     # генерация уникальной темы
     elif data == "menu_uniq":
         user_states[user_id] = None
         user_data[user_id] = {}
 
-        try:
-            bot.edit_message_text(
-                chat_id=chat_id,
-                message_id=msg_id,
-                text=uniq_mode_text(),
-                reply_markup=get_uniq_mode_keyboard(),
-                parse_mode="Markdown"
-            )
-        except Exception as e:
-            print("Ошибка menu_uniq:", e)
+        safe_edit_md(chat_id, msg_id, uniq_mode_text(), get_uniq_mode_keyboard())
 
     elif data == "uniq_mode_classic":
         user_states[user_id] = "uniq"
 
-        try:
-            bot.edit_message_text(
-                chat_id=chat_id,
-                message_id=msg_id,
-                text=uniq_classic_text(),
-                reply_markup=get_uniq_inline_keyboard(),
-                parse_mode="Markdown"
-            )
-        except Exception as e:
-            print("Ошибка uniq_mode_classic:", e)
+        safe_edit_md(chat_id, msg_id, uniq_classic_text(), get_uniq_inline_keyboard())
 
     elif data == "uniq_mode_smart":
         user_states[user_id] = STATE_SELECT_DIRECTION
         user_data[user_id] = {}
 
-        try:
-            bot.edit_message_text(
-                chat_id=chat_id,
-                message_id=msg_id,
-                text=uniq_smart_start_text(),
-                reply_markup=get_direction_keyboard(),
-                parse_mode="Markdown"
-            )
-        except Exception as e:
-            print("Ошибка uniq_mode_smart:", e)
+        safe_edit_md(chat_id, msg_id, uniq_smart_start_text(), get_direction_keyboard())
 
 
     elif data.startswith("dir_"):
         user_states[user_id] = save_direction(user_id, data)
-        try:
-            bot.edit_message_text(
-                chat_id=chat_id,
-                message_id=msg_id,
-                text=uniq_step_project_type_text(),
-                reply_markup=get_project_type_keyboard(),
-                parse_mode="Markdown"
-            )
 
-        except Exception as e:
-
-            print("Ошибка выбора направления:", e)
+        safe_edit_md(chat_id, msg_id, uniq_step_project_type_text(), get_project_type_keyboard())
 
 
     elif data.startswith("type_"):
         user_states[user_id] = save_project_type(user_id, data)
-        try:
-            bot.edit_message_text(
-                chat_id=chat_id,
-                message_id=msg_id,
-                text=uniq_step_duration_text(),
-                reply_markup=get_duration_keyboard(),
-                parse_mode="Markdown"
-            )
-        except Exception as e:
-            print("Ошибка выбора типа проекта:", e)
+
+        safe_edit_md(chat_id, msg_id, uniq_step_duration_text(), get_duration_keyboard())
 
 
     elif data.startswith("time_"):
         user_states[user_id] = save_duration(user_id, data)
-        try:
-            bot.edit_message_text(
-                chat_id=chat_id,
-                message_id=msg_id,
-                text=uniq_step_visual_text(),
-                reply_markup=get_visual_keyboard(),
-                parse_mode="Markdown"
-            )
-        except Exception as e:
-            print("Ошибка выбора сроков:", e)
+
+        safe_edit_md(chat_id, msg_id, uniq_step_visual_text(), get_visual_keyboard())
 
 
     elif data.startswith("visual_"):
         user_states[user_id] = save_visual(user_id, data)
-        try:
-            bot.edit_message_text(
-                chat_id=chat_id,
-                message_id=msg_id,
-                text=uniq_step_digital_text(),
-                reply_markup=get_digital_keyboard(),
-                parse_mode="Markdown"
-            )
-        except Exception as e:
-            print("Ошибка выбора визуального результата:", e)
+
+        safe_edit_md(chat_id, msg_id, uniq_step_digital_text(), get_digital_keyboard())
 
 
 
@@ -297,15 +252,9 @@ def handle_callbacks(call):
         show_generation_message(bot, chat_id, msg_id)
         response = generate_smart_topic(user_id, get_last_topics, build_prompt, base_system_prompt, system_prompt_uniq,
                                         build_smart_uniq_prompt, safe_gemma, save_request)
-        try:
-            bot.edit_message_text(
-                chat_id=chat_id,
-                message_id=msg_id,
-                text=response,
-                reply_markup=get_smart_result_keyboard()
-            )
-        except Exception as e:
-            print("Ошибка smart generate:", e)
+
+        safe_edit_plain(chat_id, msg_id, response, get_smart_result_keyboard())
+
         if not response.startswith("⚠️") and not response.startswith("❌"):
             user_states[user_id] = None
 
@@ -314,15 +263,8 @@ def handle_callbacks(call):
         show_generation_message(bot, chat_id, msg_id)
         response = regenerate_smart_topic(user_id, get_last_topics, build_prompt, base_system_prompt,
                                           system_prompt_uniq, build_smart_uniq_prompt, safe_gemma, save_request)
-        try:
-            bot.edit_message_text(
-                chat_id=chat_id,
-                message_id=msg_id,
-                text=response,
-                reply_markup=get_smart_result_keyboard()
-            )
-        except Exception as e:
-            print("Ошибка smart_regenerate:", e)
+
+        safe_edit_plain(chat_id, msg_id, response, get_smart_result_keyboard())
 
 
     elif data == "make_easier":
@@ -338,15 +280,8 @@ def handle_callbacks(call):
         response = make_topic_easier(user_id, build_prompt, base_system_prompt, system_prompt_uniq, build_easier_prompt,
                                      safe_gemma, save_request)
         keyboard = get_result_keyboard_by_mode(user_last_uniq_mode.get(user_id))
-        try:
-            bot.edit_message_text(
-                chat_id=chat_id,
-                message_id=msg_id,
-                text=response,
-                reply_markup=keyboard
-            )
-        except Exception as e:
-            print("Ошибка make_easier:", e)
+
+        safe_edit_plain(chat_id, msg_id, response, keyboard)
 
 
     elif data == "make_more_interesting":
@@ -362,30 +297,16 @@ def handle_callbacks(call):
         response = make_topic_more_interesting(user_id, build_prompt, base_system_prompt, system_prompt_uniq,
                                                build_more_interesting_prompt, safe_gemma, save_request)
         keyboard = get_result_keyboard_by_mode(user_last_uniq_mode.get(user_id))
-        try:
-            bot.edit_message_text(
-                chat_id=chat_id,
-                message_id=msg_id,
-                text=response,
-                reply_markup=keyboard
-            )
-        except Exception as e:
-            print("Ошибка make_more_interesting:", e)
+
+        safe_edit_plain(chat_id, msg_id, response, keyboard)
 
 
     elif data == "uniq_generate":
         show_generation_message(bot, chat_id, msg_id)
         response = generate_classic_topic(user_id, get_last_topics, build_prompt, base_system_prompt,
                                           system_prompt_uniq, safe_gemma, save_request)
-        try:
-            bot.edit_message_text(
-                chat_id=chat_id,
-                message_id=msg_id,
-                text=response,
-                reply_markup=get_uniq_result_keyboard()
-            )
-        except Exception as e:
-            print("Ошибка uniq_generate:", e)
+
+        safe_edit_plain(chat_id, msg_id, response, get_uniq_result_keyboard())
 
     elif data == "add_favorite":
         topic = user_last_uniq_topic.get(user_id)
@@ -398,100 +319,60 @@ def handle_callbacks(call):
             )
             return
 
+        if is_favorite_exists(user_id, topic):
+            bot.answer_callback_query(
+                call.id,
+                text="⭐ Эта тема уже в избранном",
+                show_alert=True
+            )
+            return
+
         add_favorite(user_id, topic)
         bot.answer_callback_query(
             call.id,
-            text="⭐ Тема добавлена в избранное"
+            text="⭐ Сохранено в избранное",
+            show_alert=True
         )
 
-        try:
-            mode = user_last_uniq_mode.get(user_id)
-            keyboard = get_saved_result_keyboard_by_mode(mode)
+        mode = user_last_uniq_mode.get(user_id)
+        keyboard = get_saved_result_keyboard_by_mode(mode)
+        safe_markup(chat_id, msg_id, keyboard)
 
-            bot.edit_message_reply_markup(
-                chat_id=chat_id,
-                message_id=msg_id,
-                reply_markup=keyboard
-            )
-        except Exception as e:
-            print("Ошибка add_favorite:", e)
 
 
     elif data == "show_favorites":
-        text, keyboard = build_favorites_view(user_id, get_favorites)
-        try:
-            bot.edit_message_text(
-                chat_id=chat_id,
-                message_id=msg_id,
-                text=text,
-                reply_markup=keyboard,
-                parse_mode="Markdown"
-            )
-        except Exception as e:
-            print("Ошибка show_favorites:", e)
+        ensure_user_data(user_id)
+        user_data[user_id]["favorites_source"] = "uniq"
+        text, keyboard = build_favorites_view(user_id, get_favorites, "uniq")
+
+        safe_edit_plain(chat_id, msg_id, text, keyboard)
 
     # тема по запросу
     elif data == "menu_idea":
         user_states[user_id] = "awaiting_idea"
         user_last_menu[user_id] = "menu_idea"
 
-        try:
-            bot.edit_message_text(
-                chat_id=chat_id,
-                message_id=msg_id,
-                text=menu_idea_text(),
-                reply_markup=get_only_back_keyboard(),
-                parse_mode="Markdown"
-            )
-        except Exception as e:
-            print("Ошибка menu_idea:", e)
+        safe_edit_md(chat_id, msg_id, menu_idea_text(), get_only_back_keyboard())
 
     # помощь
     elif data == "menu_help":
         user_states[user_id] = "awaiting_help"
         user_last_menu[user_id] = "menu_help"
 
-        try:
-            bot.edit_message_text(
-                chat_id=chat_id,
-                message_id=msg_id,
-                text=menu_help_text(),
-                reply_markup=get_only_back_keyboard(),
-                parse_mode="Markdown"
-            )
-        except Exception as e:
-            print("Ошибка menu_help:", e)
+        safe_edit_md(chat_id, msg_id, menu_help_text(), get_only_back_keyboard())
 
     # доработка проекта
     elif data == "project_help_open":
         user_states[user_id] = "project_topic_choice"
         user_last_menu[user_id] = "project_help_open"
 
-        try:
-            bot.edit_message_text(
-                chat_id=chat_id,
-                message_id=msg_id,
-                text=project_help_text(),
-                reply_markup=get_topic_choice_keyboard(),
-                parse_mode="Markdown"
-            )
-        except Exception as e:
-            print("Ошибка project_help_open:", e)
+        safe_edit_md(chat_id, msg_id, project_help_text(), get_topic_choice_keyboard())
 
     elif data == "topic_write":
         user_states[user_id] = "wait_project_topic"
         user_last_menu[user_id] = "topic_write"
 
-        try:
-            bot.edit_message_text(
-                chat_id=chat_id,
-                message_id=msg_id,
-                text=project_help_write_topic(),
-                reply_markup=get_project_topic_back_keyboard(),
-                parse_mode="Markdown"
-            )
-        except Exception as e:
-            print("Ошибка topic_write:", e)
+        safe_edit_md(chat_id, msg_id, project_help_write_topic(), get_project_topic_back_keyboard())
 
 
     elif data == "project_relevance":
@@ -590,6 +471,121 @@ def handle_callbacks(call):
         generate_project_section(user_id, chat_id, msg_id, section_title, instruction, system_prompt_project_all,
                                  allow_list=False)
 
+    elif data == "topic_favorites":
+        ensure_user_data(user_id)
+        user_data[user_id]["favorites_source"] = "project"
+
+        favorites = get_favorites(user_id)
+
+        if not favorites:
+            safe_edit_md(
+                chat_id,
+                msg_id,
+                "⭐ *Избранные темы*\n\n"
+                "У тебя пока нет сохранённых тем.\n\n"
+                "Сначала добавь тему в избранное, а потом здесь можно будет выбрать её для проекта.",
+                get_project_topic_back_keyboard()
+            )
+            return
+
+        safe_edit_md(
+            chat_id,
+            msg_id,
+            "⭐ Выбери тему из избранных:",
+            get_project_favorites_keyboard(favorites)
+        )
+
+    elif data.startswith("project_fav_"):
+        favorites = get_favorites(user_id)
+
+        try:
+            index = int(data.replace("project_fav_", ""))
+            topic = favorites[index]
+        except (ValueError, IndexError):
+            bot.answer_callback_query(
+                call.id,
+                text="❗ Не удалось выбрать тему",
+                show_alert=True
+            )
+            return
+
+        ensure_user_data(user_id)
+        user_data[user_id]["project_topic"] = topic
+        user_states[user_id] = "project_sections"
+
+        safe_edit_md(
+            chat_id,
+            msg_id,
+            project_sections_text(topic),
+            get_project_sections_keyboard()
+        )
+
+
+    elif data == "main_favorites":
+        ensure_user_data(user_id)
+        user_data[user_id]["favorites_source"] = "main"
+        text, keyboard = build_favorites_view(user_id, get_favorites, "main")
+
+        safe_edit_plain(chat_id, msg_id, text, keyboard)
+
+    elif data.startswith("fav_open_"):
+        favorites = get_favorites(user_id)
+
+        try:
+            index = int(data.replace("fav_open_", ""))
+            topic = favorites[index]
+        except (ValueError, IndexError):
+            bot.answer_callback_query(
+                call.id,
+                text="❗ Не удалось открыть тему",
+                show_alert=True
+            )
+            return
+
+        source = user_data.get(user_id, {}).get("favorites_source", "uniq")
+
+        keyboard = get_single_favorite_keyboard(index, source)
+
+        safe_edit_plain(
+            chat_id,
+            msg_id,
+            topic,
+            keyboard
+        )
+
+    elif data.startswith("fav_delete_"):
+        from database import delete_favorite_by_index
+
+        try:
+            index = int(data.replace("fav_delete_", ""))
+        except:
+            bot.answer_callback_query(
+                call.id,
+                text="❗ Ошибка удаления",
+                show_alert=True
+            )
+            return
+
+        deleted = delete_favorite_by_index(user_id, index)
+
+        if not deleted:
+            bot.answer_callback_query(
+                call.id,
+                text="❗ Не удалось удалить",
+                show_alert=True
+            )
+            return
+
+        bot.answer_callback_query(
+            call.id,
+            text="🗑️ Тема удалена"
+        )
+
+        source = user_data.get(user_id, {}).get("favorites_source", "uniq")
+        text, keyboard = build_favorites_view(user_id, get_favorites, source)
+
+        safe_edit_plain(chat_id, msg_id, text, keyboard)
+
 
 # обработчик текста
 @bot.message_handler(content_types=["text"])
@@ -618,15 +614,7 @@ def handle_text(message):
             user_last_uniq_mode[user_id] = "idea"
             keyboard = get_idea_result_keyboard()
 
-        try:
-            bot.edit_message_text(
-                chat_id=message.chat.id,
-                message_id=msg_id,
-                text=response,
-                reply_markup=keyboard
-            )
-        except Exception as e:
-            print("Ошибка ответа:", e)
+        safe_edit_plain(message.chat.id, msg_id, response, keyboard)
 
         try:
             bot.delete_message(message.chat.id, user_message_id)
@@ -652,15 +640,7 @@ def handle_text(message):
             user_last_uniq_mode[user_id] = "help"
             keyboard = get_help_result_keyboard()
 
-        try:
-            bot.edit_message_text(
-                chat_id=message.chat.id,
-                message_id=msg_id,
-                text=response,
-                reply_markup=keyboard
-            )
-        except Exception as e:
-            print("Ошибка ответа:", e)
+        safe_edit_plain(message.chat.id, msg_id, response, keyboard)
 
         try:
             bot.delete_message(message.chat.id, user_message_id)
@@ -677,17 +657,7 @@ def handle_text(message):
 
         text = project_sections_text(topic)
 
-        try:
-            bot.edit_message_text(
-                chat_id=message.chat.id,
-                message_id=msg_id,
-                text=text,
-                reply_markup=get_project_sections_keyboard(),
-                parse_mode=None
-            )
-        except Exception as e:
-            print("Ошибка wait_project_topic edit:", e)
-            return
+        safe_edit_plain(message.chat.id, msg_id, text, get_project_sections_keyboard())
 
         try:
             bot.delete_message(message.chat.id, user_message_id)
@@ -709,4 +679,5 @@ if __name__ == "__main__":
             bot.polling(none_stop=True, interval=0, timeout=30)
         except Exception as e:
             print("Ошибка polling:", e)
+            print("Перезапуск через 5 секунд...")
             time.sleep(5)
