@@ -130,13 +130,3 @@ def build_more_interesting_prompt(last_topic, build_prompt, base_system_prompt, 
     )
     return build_prompt(base_system_prompt, system_prompt_uniq, user_prompt)
 
-
-def build_more_practical_prompt(last_topic, build_prompt, base_system_prompt, system_prompt_uniq):
-    user_prompt = (
-        "Сделай эту тему проекта практичнее.\n"
-        "Добавь понятный результат, который можно реально показать на защите.\n"
-        "Не усложняй проект и сохрани его выполнимым для студента 1 курса.\n"
-        "Сохрани тот же формат ответа.\n\n"
-        f"Исходная тема:\n{last_topic}"
-    )
-    return build_prompt(base_system_prompt, system_prompt_uniq, user_prompt)
