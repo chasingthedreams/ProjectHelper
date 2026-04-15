@@ -17,15 +17,6 @@ def init_db():
     cur = conn.cursor()
 
     cur.execute("""
-    CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        telegram_id INTEGER UNIQUE,
-        full_name TEXT,
-        first_seen TEXT
-    )
-    """)
-
-    cur.execute("""
     CREATE TABLE IF NOT EXISTS requests (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         telegram_id INTEGER,
@@ -44,19 +35,6 @@ def init_db():
             created_at TEXT
         )
         """)
-
-    conn.commit()
-    conn.close()
-
-
-def add_user(telegram_id, full_name):
-    conn = get_connection()
-    cur = conn.cursor()
-
-    cur.execute("""
-    INSERT OR IGNORE INTO users (telegram_id, full_name, first_seen)
-    VALUES (?, ?, ?)
-    """, (telegram_id, full_name, datetime.now().isoformat()))
 
     conn.commit()
     conn.close()
@@ -176,3 +154,30 @@ def delete_last_favorite(telegram_id):
     conn.close()
     return True
 
+def delete_favorite_by_index(telegram_id, index):
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT id
+        FROM favorites
+        WHERE telegram_id = ?
+        ORDER BY id DESC
+    """, (telegram_id,))
+
+    rows = cur.fetchall()
+
+    if index < 0 or index >= len(rows):
+        conn.close()
+        return False
+
+    favorite_id = rows[index][0]
+
+    cur.execute("""
+        DELETE FROM favorites
+        WHERE id = ?
+    """, (favorite_id,))
+
+    conn.commit()
+    conn.close()
+    return True
