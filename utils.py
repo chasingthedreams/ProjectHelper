@@ -3,11 +3,11 @@ from ollama import ask_gemma
 
 def build_prompt(base_system_prompt, system_prompt, user_text):
     return (
-        base_system_prompt
-        + "\n\n"
-        + system_prompt
-        + "\n\nЗАПРОС ПОЛЬЗОВАТЕЛЯ:\n"
-        + (user_text or "")
+            base_system_prompt
+            + "\n\n"
+            + system_prompt
+            + "\n\nЗАПРОС ПОЛЬЗОВАТЕЛЯ:\n"
+            + (user_text or "")
     )
 
 
@@ -18,10 +18,11 @@ def safe_gemma(prompt):
             return "⚠️ *Не удалось получить ответ.*"
 
         response = response.strip()
+        response = response.replace("*", "")
         if len(response) < 10:
             return "⚠️ *Ответ получился слишком коротким. Попробуй ещё раз.*"
         return response
-    
+
     except Exception as e:
         print("Ошибка Ollama:", e)
         return "❌ *ИИ временно недоступна.*"
@@ -38,6 +39,7 @@ def show_generation_message(bot, chat_id, msg_id):
         )
     except:
         pass
+
 
 def escape_markdown(text):
     if not text:
