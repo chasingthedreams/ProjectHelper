@@ -343,8 +343,9 @@ def handle_callbacks(call):
     elif data == "show_favorites":
         ensure_user_data(user_id)
         user_data[user_id]["favorites_source"] = "uniq"
-        text, keyboard = build_favorites_view(user_id, get_favorites, "uniq")
+        user_data[user_id]["favorites_page"] = 0
 
+        text, keyboard = build_favorites_view(user_id, get_favorites, "uniq")
         safe_edit_plain(chat_id, msg_id, text, keyboard)
 
     # тема по запросу
@@ -524,9 +525,37 @@ def handle_callbacks(call):
     elif data == "main_favorites":
         ensure_user_data(user_id)
         user_data[user_id]["favorites_source"] = "main"
-        text, keyboard = build_favorites_view(user_id, get_favorites, "main")
+        user_data[user_id]["favorites_page"] = 0
 
+        text, keyboard = build_favorites_view(user_id, get_favorites, "main")
         safe_edit_plain(chat_id, msg_id, text, keyboard)
+
+    elif data == "fav_page_prev":
+        ensure_user_data(user_id)
+        source = user_data[user_id].get("favorites_source", "uniq")
+        page = user_data[user_id].get("favorites_page", 0)
+
+        if page > 0:
+            user_data[user_id]["favorites_page"] = page - 1
+
+        text, keyboard = build_favorites_view(user_id, get_favorites, source)
+        safe_edit_plain(chat_id, msg_id, text, keyboard)
+
+    elif data == "fav_page_next":
+        ensure_user_data(user_id)
+        source = user_data[user_id].get("favorites_source", "uniq")
+        page = user_data[user_id].get("favorites_page", 0)
+        favorites = get_favorites(user_id)
+        total_pages = (len(favorites) + 5 - 1) // 5 if favorites else 1
+
+        if page < total_pages - 1:
+            user_data[user_id]["favorites_page"] = page + 1
+
+        text, keyboard = build_favorites_view(user_id, get_favorites, source)
+        safe_edit_plain(chat_id, msg_id, text, keyboard)
+
+    elif data == "fav_page_info":
+        return
 
     elif data.startswith("fav_open_"):
         favorites = get_favorites(user_id)
@@ -581,7 +610,8 @@ def handle_callbacks(call):
             text="🗑️ Тема удалена"
         )
 
-        source = user_data.get(user_id, {}).get("favorites_source", "uniq")
+        ensure_user_data(user_id)
+        source = user_data[user_id].get("favorites_source", "uniq")
         text, keyboard = build_favorites_view(user_id, get_favorites, source)
 
         safe_edit_plain(chat_id, msg_id, text, keyboard)

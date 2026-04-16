@@ -261,7 +261,7 @@ def get_project_favorites_keyboard(favorites):
     return kb
 
 
-def get_favorites_topics_keyboard(favorites, source="uniq"):
+def get_favorites_topics_keyboard(favorites, page, total_pages, start_index=0, source="uniq"):
     kb = InlineKeyboardMarkup(row_width=1)
     MAX_LEN = 40
 
@@ -280,7 +280,9 @@ def get_favorites_topics_keyboard(favorites, source="uniq"):
         if len(title) > MAX_LEN:
             title = title[:MAX_LEN] + "..."
 
-        if i == 0:
+        global_index = start_index + i
+
+        if global_index == 0:
             button_text = f"🆕 {title}"
         else:
             button_text = title
@@ -288,14 +290,23 @@ def get_favorites_topics_keyboard(favorites, source="uniq"):
         kb.add(
             InlineKeyboardButton(
                 button_text,
-                callback_data=f"fav_open_{i}"
+                callback_data=f"fav_open_{global_index}"
             )
         )
 
+    prev_callback = "fav_page_prev" if page > 0 else "fav_page_info"
+    next_callback = "fav_page_next" if page < total_pages - 1 else "fav_page_info"
+
+    kb.row(
+        InlineKeyboardButton("⬅️ Назад", callback_data=prev_callback),
+        InlineKeyboardButton(f"{page + 1}/{total_pages}", callback_data="fav_page_info"),
+        InlineKeyboardButton("Вперёд ➡️", callback_data=next_callback)
+    )
+
     if source == "main":
-        kb.add(InlineKeyboardButton("⬅️ Назад", callback_data="back_to_menu"))
+        kb.add(InlineKeyboardButton("↩️ В меню", callback_data="back_to_menu"))
     else:
-        kb.add(InlineKeyboardButton("⬅️ Назад", callback_data="back_to_uniq"))
+        kb.add(InlineKeyboardButton("↩️ К темам", callback_data="back_to_uniq"))
 
     return kb
 
